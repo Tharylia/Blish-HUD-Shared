@@ -17,9 +17,6 @@ public abstract class RenderTargetControl : Control
     private RenderTarget2D _renderTarget;
     private bool _renderTargetIsEmpty;
 
-    private bool _currentVisibilityDirection = false;
-    private Tween _currentVisibilityAnimation { get; set; }
-
     private TimeSpan _lastDraw = TimeSpan.Zero;
 
     public TimeSpan DrawInterval { get; set; } = TimeSpan.FromMilliseconds(500);
@@ -32,25 +29,6 @@ public abstract class RenderTargetControl : Control
             base.Size = value;
             this.CreateRenderTarget();
         }
-    }
-
-    public new bool Visible
-    {
-        get
-        {
-            if (this._currentVisibilityDirection && this._currentVisibilityAnimation != null)
-            {
-                return true;
-            }
-
-            if (!this._currentVisibilityDirection && this._currentVisibilityAnimation != null)
-            {
-                return false;
-            }
-
-            return base.Visible;
-        }
-        set => base.Visible = value;
     }
 
     protected override void Paint(SpriteBatch spriteBatch, Rectangle bounds)
@@ -92,48 +70,6 @@ public abstract class RenderTargetControl : Control
 
     protected abstract void DoPaint(SpriteBatch spriteBatch, Rectangle bounds);
 
-    public new void Show()
-    {
-        if (this.Visible && this._currentVisibilityAnimation == null)
-        {
-            return;
-        }
-
-        if (this._currentVisibilityAnimation != null)
-        {
-            this._currentVisibilityAnimation.Cancel();
-        }
-
-        this._currentVisibilityDirection = true;
-        this.Visible = true;
-        this._currentVisibilityAnimation = Animation.Tweener.Tween(this, new { Opacity = 1f }, 0.2f);
-        this._currentVisibilityAnimation.OnComplete(() =>
-        {
-            this._currentVisibilityAnimation = null;
-        });
-    }
-
-    public new void Hide()
-    {
-        if (!this.Visible && this._currentVisibilityAnimation == null)
-        {
-            return;
-        }
-
-        if (this._currentVisibilityAnimation != null)
-        {
-            this._currentVisibilityAnimation.Cancel();
-        }
-
-        this._currentVisibilityDirection = false;
-        this._currentVisibilityAnimation = Animation.Tweener.Tween(this, new { Opacity = 0f }, 0.2f);
-        this._currentVisibilityAnimation.OnComplete(() =>
-        {
-            this.Visible = false;
-            this._currentVisibilityAnimation = null;
-        });
-    }
-
     private void CreateRenderTarget()
     {
         int width = Math.Max(this.Width, 1);
@@ -165,12 +101,6 @@ public abstract class RenderTargetControl : Control
         {
             this._renderTarget?.Dispose();
             this._renderTarget = null;
-        }
-
-        if (this._currentVisibilityAnimation != null)
-        {
-            this._currentVisibilityAnimation.Cancel();
-            this._currentVisibilityAnimation = null;
         }
 
         base.DisposeControl();
