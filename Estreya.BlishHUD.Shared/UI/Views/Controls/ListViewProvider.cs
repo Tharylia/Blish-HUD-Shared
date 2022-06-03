@@ -115,18 +115,23 @@ internal class ListViewProvider<T> : ControlProvider<List<T>, List<T>>
         {
             this.Control = control;
 
-            System.Reflection.PropertyInfo[] properties = this.Control.GetType().GetProperties(System.Reflection.BindingFlags.DeclaredOnly | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            System.Reflection.PropertyInfo[] properties = this.Control.GetType().GetProperties(System.Reflection.BindingFlags.Public| System.Reflection.BindingFlags.Instance);
 
             int y = 0;
 
-            foreach (System.Reflection.PropertyInfo property in properties)
+            foreach (System.Reflection.PropertyInfo property in properties.OrderBy(prop => prop.DeclaringType == typeof(TCtrl) ? 1 : 0))
             {
                 if (!property.CanWrite)
                 {
                     continue;
                 }
 
-                var typeOverrideAttribute = property.GetCustomAttribute<TypeOverrideAttribute>();
+                if (property.GetCustomAttribute<TypeIgnoreAttribute>() != null)
+                {
+                    continue;
+                }
+
+                TypeOverrideAttribute typeOverrideAttribute = property.GetCustomAttribute<TypeOverrideAttribute>();
 
                 ParameterExpression par = Expression.Parameter(typeof(TCtrl), "x");
 
@@ -138,7 +143,6 @@ internal class ListViewProvider<T> : ControlProvider<List<T>, List<T>>
                     .MakeGenericMethod(func)
                     .Invoke(null, new object[] { col, new ParameterExpression[] { par } });
 
-
                 try
                 {
                     Label label = new Label()
@@ -149,7 +153,6 @@ internal class ListViewProvider<T> : ControlProvider<List<T>, List<T>>
                         Width = LABEL_WIDTH,
                         WrapText = true
                     };
-
 
                     Control ctrl;
 

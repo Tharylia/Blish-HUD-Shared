@@ -20,22 +20,24 @@ public abstract class APIState<T> : ManagedState
 {
     private readonly Logger Logger;
 
-    private readonly Gw2ApiManager _apiManager;
-    private readonly List<TokenPermission> _neededPermissions = new List<TokenPermission>();
+    protected readonly Gw2ApiManager _apiManager;
+    protected readonly List<TokenPermission> _neededPermissions = new List<TokenPermission>();
 
     private TimeSpan _updateInterval;
     private double _timeSinceUpdate = 0;
 
+    private Task _loadTask;
+
     protected readonly AsyncLock _listLock = new AsyncLock();
 
     protected List<T> APIObjectList { get; } = new List<T>();
-    protected Func<Gw2ApiManager, Task<List<T>>> FetchAction { get; init;}
+    protected Func<Gw2ApiManager, Task<List<T>>> FetchAction { get; init; }
 
     protected event EventHandler<T> APIObjectAdded;
     protected event EventHandler<T> APIObjectRemoved;
     protected event EventHandler APIUpdated;
 
-    public APIState(Gw2ApiManager apiManager, List<TokenPermission> neededPermissions = null, TimeSpan? updateInterval = null,bool awaitLoad = true, int saveInterval = -1) : base(awaitLoad, saveInterval)
+    public APIState(Gw2ApiManager apiManager, List<TokenPermission> neededPermissions = null, TimeSpan? updateInterval = null, bool awaitLoad = true, int saveInterval = -1) : base(awaitLoad, saveInterval)
     {
         this.Logger = Logger.GetLogger(this.GetType());
 
@@ -51,17 +53,31 @@ public abstract class APIState<T> : ManagedState
 
     private void ApiManager_SubtokenUpdated(object sender, ValueEventArgs<IEnumerable<Gw2Sharp.WebApi.V2.Models.TokenPermission>> e)
     {
-        _ = Task.Run(this.Reload);
+        // Load already called. Don't refresh if no permissions needed anyway.
+        if (this._neededPermissions.Count > 0)
+        {
+            _ = Task.Run(this.Reload);
+        }
     }
 
-    public sealed override Task Clear()
+    public sealed override async Task Clear()
     {
+        await this.WaitForLoad();
+
         using (this._listLock.Lock())
         {
             this.APIObjectList.Clear();
         }
 
-        return this.DoClear();
+        await this.DoClear();
+    }
+
+    private async Task WaitForLoad()
+    {
+        if (this._loadTask != null)
+        {
+            await this._loadTask;
+        }
     }
 
     protected abstract Task DoClear();
@@ -119,66 +135,63 @@ public abstract class APIState<T> : ManagedState
             {
                 oldAPIObjectList = this.APIObjectList.Copy();
                 this.APIObjectList.Clear();
-            }
 
-            Logger.Debug("Got {0} api objects from previous fetch: {1}", oldAPIObjectList.Count, JsonConvert.SerializeObject(oldAPIObjectList));
+                Logger.Debug("Got {0} api objects from previous fetch: {1}", oldAPIObjectList.Count, JsonConvert.SerializeObject(oldAPIObjectList));
 
-            if (!this._apiManager.HasPermissions(this._neededPermissions))
-            {
-                Logger.Warn("API Manager does not have needed permissions: {0}", this._neededPermissions.Humanize());
-                return;
-            }
+                if (!this._apiManager.HasPermissions(this._neededPermissions))
+                {
+                    Logger.Warn("API Manager does not have needed permissions: {0}", this._neededPermissions.Humanize());
+                    return;
+                }
 
-            List<T> apiObjects = await this.FetchAction.Invoke(this._apiManager);
+                List<T> apiObjects = await this.FetchAction.Invoke(this._apiManager);
 
-            Logger.Debug("API returned objects: {0}", JsonConvert.SerializeObject(apiObjects));
+                Logger.Debug("API returned objects: {0}", JsonConvert.SerializeObject(apiObjects));
 
-            using (await this._listLock.LockAsync())
-            {
                 this.APIObjectList.AddRange(apiObjects);
-            }
 
-            // Check if new api objects have been added.
-            foreach (T apiObject in apiObjects)
-            {
-                if (!oldAPIObjectList.Contains(apiObject))
+                // Check if new api objects have been added.
+                foreach (T apiObject in apiObjects)
                 {
-                    Logger.Info($"API Object added: {apiObject}");
-                    try
+                    if (!oldAPIObjectList.Any(oldApiObject => oldApiObject.GetHashCode() == apiObject.GetHashCode()))
                     {
-                        this.APIObjectAdded?.Invoke(this, apiObject);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error(ex, "Error handling api object added event:");
+                        Logger.Debug($"API Object added: {apiObject}");
+                        try
+                        {
+                            this.APIObjectAdded?.Invoke(this, apiObject);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "Error handling api object added event:");
+                        }
                     }
                 }
-            }
 
-            // Immediately after login the api still reports some objects as available because the account record has not been updated yet.
-            // After another request to the api they should disappear.
-            for (int i = oldAPIObjectList.Count - 1; i >= 0; i--)
-            {
-                T oldApiObject = oldAPIObjectList[i];
-
-                if (!apiObjects.Contains(oldApiObject))
+                // Immediately after login the api still reports some objects as available because the account record has not been updated yet.
+                // After another request to the api they should disappear.
+                for (int i = oldAPIObjectList.Count - 1; i >= 0; i--)
                 {
-                    Logger.Info($"API Object disappeared from the api: {oldApiObject}");
+                    T oldApiObject = oldAPIObjectList[i];
 
-                    _ = oldAPIObjectList.Remove(oldApiObject);
+                    if (!apiObjects.Any(apiObject => apiObject.GetHashCode() == apiObject.GetHashCode()))
+                    {
+                        Logger.Debug($"API Object disappeared from the api: {oldApiObject}");
 
-                    try
-                    {
-                        this.APIObjectRemoved?.Invoke(this, oldApiObject);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error(ex, "Error handling api object removed event:");
+                        _ = oldAPIObjectList.Remove(oldApiObject);
+
+                        try
+                        {
+                            this.APIObjectRemoved?.Invoke(this, oldApiObject);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "Error handling api object removed event:");
+                        }
                     }
                 }
-            }
 
-            this.APIUpdated?.Invoke(this, EventArgs.Empty);
+                this.APIUpdated?.Invoke(this, EventArgs.Empty);
+            }
         }
         catch (MissingScopesException msex)
         {
@@ -196,6 +209,12 @@ public abstract class APIState<T> : ManagedState
 
     protected override async Task Load()
     {
-        await this.FetchFromAPI(null);
+        await this.WaitForLoad();
+
+        this._loadTask = this.FetchFromAPI(null);
+
+        await this._loadTask;
+
+        this._loadTask = null;
     }
 }

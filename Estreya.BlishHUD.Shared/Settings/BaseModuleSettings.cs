@@ -1,4 +1,4 @@
-﻿namespace Estreya.BlishHUD.TradingPostWatcher
+﻿namespace Estreya.BlishHUD.Shared.Settings
 {
     using Blish_HUD;
     using Blish_HUD.Input;

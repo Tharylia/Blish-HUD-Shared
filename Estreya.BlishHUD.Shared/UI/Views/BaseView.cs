@@ -98,10 +98,10 @@ public abstract class BaseView : View
 
         progress.Report(string.Empty);
 
-        return await this.DoLoad(progress);
+        return await this.InternalLoad(progress);
     }
 
-    protected abstract Task<bool> DoLoad(IProgress<string> progress);
+    protected abstract Task<bool> InternalLoad(IProgress<string> progress);
 
     protected sealed override void Build(Container buildPanel)
     {

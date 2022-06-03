@@ -10,6 +10,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 public class IconState : ManagedState
@@ -17,6 +18,8 @@ public class IconState : ManagedState
     private static readonly Logger Logger = Logger.GetLogger<IconState>();
     private const string FOLDER_NAME = "images";
     private static TimeSpan _saveInterval = TimeSpan.FromMinutes(2);
+
+    private static readonly Regex _regexRenderServiceSignatureFileIdPair = new Regex("(.{40})\\/(\\d+)(?>\\..*)?$", RegexOptions.Compiled | RegexOptions.Singleline);
 
     private readonly ContentsManager _contentsManager;
 
@@ -205,6 +208,18 @@ public class IconState : ManagedState
         if (string.IsNullOrWhiteSpace(identifier))
         {
             return null;
+        }
+
+        if (checkRenderAPI)
+        {
+            Match match = _regexRenderServiceSignatureFileIdPair.Match(identifier);
+            if (match.Success)
+            {
+                string signature = match.Groups[1].Value;
+                string fileId = match.Groups[2].Value;
+
+                identifier = $"{signature}/{fileId}";
+            }
         }
 
         string sanitizedIdentifier = FileUtil.SanitizeFileName(System.IO.Path.ChangeExtension(identifier, null));

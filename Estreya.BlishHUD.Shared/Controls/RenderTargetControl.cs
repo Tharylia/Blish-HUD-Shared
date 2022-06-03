@@ -2,6 +2,7 @@
 
 using Blish_HUD;
 using Blish_HUD.Controls;
+using Estreya.BlishHUD.Shared.Utils;
 using Glide;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -75,7 +76,7 @@ public abstract class RenderTargetControl : Control
         }
 
         spriteBatch.Begin(this.SpriteBatchParameters);
-        spriteBatch.DrawOnCtrl(this, _renderTarget, bounds, Color.White);
+        spriteBatch.DrawOnCtrl(this, _renderTarget, bounds , Color.White);
         spriteBatch.End();
 
         spriteBatch.Begin(this.SpriteBatchParameters);
@@ -156,5 +157,22 @@ public abstract class RenderTargetControl : Control
 
             _renderTargetIsEmpty = true;
         }
+    }
+
+    protected override void DisposeControl()
+    {
+        if (this._renderTarget != null)
+        {
+            this._renderTarget?.Dispose();
+            this._renderTarget = null;
+        }
+
+        if (this._currentVisibilityAnimation != null)
+        {
+            this._currentVisibilityAnimation.Cancel();
+            this._currentVisibilityAnimation = null;
+        }
+
+        base.DisposeControl();
     }
 }

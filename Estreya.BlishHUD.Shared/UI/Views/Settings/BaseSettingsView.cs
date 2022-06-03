@@ -4,13 +4,9 @@
     using Blish_HUD.Controls;
     using Blish_HUD.Settings;
     using Estreya.BlishHUD.Shared.Extensions;
-    using Estreya.BlishHUD.Shared.Resources;
     using Estreya.BlishHUD.Shared.UI.Views.Controls;
     using Microsoft.Xna.Framework;
     using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading.Tasks;
 
     public abstract class BaseSettingsView : BaseView
     {
@@ -20,7 +16,6 @@
         private const int BINDING_WIDTH = 170;
 
         private static readonly Logger Logger = Logger.GetLogger<BaseSettingsView>();
-
 
         protected sealed override void DoBuild(Panel parent)
         {
@@ -114,12 +109,12 @@
                 ColorPicker.Colors.Remove(tempColor);
 
                 ColorPickerPanel.Visible = !ColorPickerPanel.Visible;
-                SelectedColorSetting = setting.EntryKey;
+                this.SelectedColorSetting = setting.EntryKey;
             };
 
             ColorPicker.SelectedColorChanged += (sender, eArgs) =>
             {
-                if (SelectedColorSetting != setting.EntryKey)
+                if (this.SelectedColorSetting != setting.EntryKey)
                 {
                     return;
                 }

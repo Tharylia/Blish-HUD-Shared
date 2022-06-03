@@ -70,7 +70,7 @@ public static class FileUtil
 
         string text = await ReadStringAsync(path);
 
-        return string.IsNullOrWhiteSpace(text) ? null : text.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+        return string.IsNullOrWhiteSpace(text) ? new string[0] : text.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
     }
 
     public static async Task WriteBytesAsync(string path, byte[] data)
@@ -78,6 +78,11 @@ public static class FileUtil
         if (string.IsNullOrWhiteSpace(path))
         {
             return;
+        }
+
+        if (!Directory.Exists(Path.GetDirectoryName(path)))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
         }
 
         try
